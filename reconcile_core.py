@@ -142,12 +142,12 @@ def get_summary_text(result):
 
     lines.append(f"吻合筆數：{n_match}")
     lines.append(f"金額不符：{n_mismatch}")
-    lines.append(f"只在發票（無交易）：{n_only_xlsx}")
-    lines.append(f"只在交易（無發票）：{n_only_csv}")
+    lines.append(f"只在發票紀錄存在：{n_only_xlsx}")
+    lines.append(f"只在8591交易紀錄存在：{n_only_csv}")
     lines.append(f"排除（銀行紀錄）：{n_excluded}")
     lines.append("")
-    lines.append(f"發票 8591 總額：{result['xlsx_8591_total']:,.0f}")
-    lines.append(f"交易平台總額：  {result['csv_total']:,.0f}")
+    lines.append(f"發票總額：          {result['xlsx_8591_total']:,.0f}")
+    lines.append(f"8591交易紀錄總額：{result['csv_total']:,.0f}")
     diff = result['xlsx_8591_total'] - result['csv_total']
     lines.append(f"差額：          {diff:,.0f}")
 
@@ -194,12 +194,12 @@ def export_report(result, output_path):
     summary_items = [
         ('吻合筆數', len(result['matched'])),
         ('金額不符', len(result['amount_mismatch'])),
-        ('只在發票（無交易）', len(result['only_in_xlsx'])),
-        ('只在交易（無發票）', len(result['only_in_csv'])),
+        ('只在發票紀錄存在', len(result['only_in_xlsx'])),
+        ('只在8591交易紀錄存在', len(result['only_in_csv'])),
         ('排除（銀行紀錄）', len(result['excluded_xlsx'])),
         ('', ''),
-        ('發票 8591 總額', result['xlsx_8591_total']),
-        ('交易平台總額', result['csv_total']),
+        ('發票總額', result['xlsx_8591_total']),
+        ('8591交易紀錄總額', result['csv_total']),
         ('差額', result['xlsx_8591_total'] - result['csv_total']),
         ('', ''),
         ('發票全部總額（含銀行）', result['xlsx_full_total']),
@@ -243,7 +243,7 @@ def export_report(result, output_path):
         row_idx += 1
 
     row_idx += 1
-    ws3.cell(row=row_idx, column=1, value='【只在發票（無對應交易）】').font = Font(bold=True, size=12)
+    ws3.cell(row=row_idx, column=1, value='【只在發票紀錄存在】').font = Font(bold=True, size=12)
     row_idx += 1
     if result['only_in_xlsx']:
         ox_headers = ['賣場編號', '發票號碼', '發票金額']
@@ -261,7 +261,7 @@ def export_report(result, output_path):
         row_idx += 1
 
     row_idx += 1
-    ws3.cell(row=row_idx, column=1, value='【只在交易（無對應發票）】').font = Font(bold=True, size=12)
+    ws3.cell(row=row_idx, column=1, value='【只在8591交易紀錄存在】').font = Font(bold=True, size=12)
     row_idx += 1
     if result['only_in_csv']:
         oc_headers = ['賣場編號', '交易金額', '遊戲名', '手續費', '交易所得']

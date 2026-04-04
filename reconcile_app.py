@@ -337,7 +337,7 @@ HTML_TEMPLATE = '''
             <div class="card">
                 <h2>上傳對帳檔案</h2>
 
-                <label>發票檔案</label>
+                <label>發票紀錄</label>
                 <div class="upload-zone" id="zone1">
                     <div class="icon">&#128196;</div>
                     <div class="text">點擊或拖曳檔案至此</div>
@@ -347,7 +347,7 @@ HTML_TEMPLATE = '''
                 </div>
                 <div class="hint">支援 XLSX / CSV 格式</div>
 
-                <label>交易檔案</label>
+                <label>8591交易紀錄</label>
                 <div class="upload-zone" id="zone2">
                     <div class="icon">&#128178;</div>
                     <div class="text">點擊或拖曳檔案至此</div>
