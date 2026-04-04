@@ -14,117 +14,151 @@ HTML_TEMPLATE = '''
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>每日發票對帳工具</title>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
         :root {
-            --navy: #0f1b3d;
-            --navy-light: #162044;
-            --navy-card: #1a2650;
-            --border: #2a3a6a;
-            --gold: #d4a843;
-            --gold-light: #f0c75e;
-            --gold-dim: rgba(212, 168, 67, 0.15);
-            --blue-accent: #4a7dff;
-            --green: #34c77b;
-            --green-dim: rgba(52, 199, 123, 0.12);
-            --red: #ef5565;
-            --red-dim: rgba(239, 85, 101, 0.12);
-            --text: #e8ecf4;
-            --text-secondary: #8b99b8;
+            --bg-start: #0c0e1a;
+            --bg-end: #1a1040;
+            --glass: rgba(255, 255, 255, 0.06);
+            --glass-border: rgba(255, 255, 255, 0.12);
+            --glass-hover: rgba(255, 255, 255, 0.10);
+            --accent: #7c6aef;
+            --accent-light: #a78bfa;
+            --accent-glow: rgba(124, 106, 239, 0.35);
+            --green: #34d399;
+            --green-glow: rgba(52, 211, 153, 0.2);
+            --red: #f87171;
+            --red-glow: rgba(248, 113, 113, 0.2);
+            --text: #f0f0f8;
+            --text-dim: rgba(240, 240, 248, 0.55);
+            --text-mid: rgba(240, 240, 248, 0.75);
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            font-family: "Noto Sans TC", -apple-system, "Microsoft JhengHei", sans-serif;
-            background: var(--navy);
-            color: var(--text);
+            font-family: "Noto Sans TC", "Inter", -apple-system, sans-serif;
             min-height: 100vh;
+            background: linear-gradient(135deg, var(--bg-start) 0%, var(--bg-end) 50%, #0f1828 100%);
+            color: var(--text);
+            overflow-x: hidden;
         }
 
-        /* 頂部裝飾線 */
-        .top-bar {
-            height: 4px;
-            background: linear-gradient(90deg, var(--gold), var(--gold-light), var(--gold));
+        /* 背景光暈裝飾 */
+        body::before, body::after {
+            content: '';
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(120px);
+            z-index: 0;
+            pointer-events: none;
+        }
+        body::before {
+            width: 600px; height: 600px;
+            background: radial-gradient(circle, rgba(124, 106, 239, 0.15), transparent 70%);
+            top: -200px; left: -100px;
+        }
+        body::after {
+            width: 500px; height: 500px;
+            background: radial-gradient(circle, rgba(52, 211, 153, 0.08), transparent 70%);
+            bottom: -150px; right: -100px;
         }
 
-        .container { max-width: 700px; margin: 0 auto; padding: 32px 20px; }
-
-        /* Logo / 標題區 */
-        .header { text-align: center; margin-bottom: 36px; }
-        .header .logo {
-            display: inline-flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 10px;
+        .container {
+            max-width: 640px;
+            margin: 0 auto;
+            padding: 48px 20px 36px;
+            position: relative;
+            z-index: 1;
         }
-        .header .logo-icon {
-            width: 48px; height: 48px;
-            background: linear-gradient(135deg, var(--gold), var(--gold-light));
-            border-radius: 12px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 24px;
-            box-shadow: 0 4px 16px rgba(212, 168, 67, 0.3);
+
+        /* 標題區 */
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
         }
         .header h1 {
-            font-size: 26px;
+            font-size: 28px;
             font-weight: 700;
-            color: var(--text);
-            letter-spacing: 1px;
+            letter-spacing: 2px;
+            background: linear-gradient(135deg, var(--text), var(--accent-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
         }
-        .header h1 span { color: var(--gold); }
         .header .subtitle {
             font-size: 13px;
-            color: var(--text-secondary);
-            margin-top: 4px;
+            color: var(--text-dim);
+            font-weight: 300;
+            letter-spacing: 3px;
+            text-transform: uppercase;
         }
 
-        /* 卡片 */
+        /* 玻璃卡片 */
         .card {
-            background: var(--navy-card);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 28px;
-            margin-bottom: 20px;
+            background: var(--glass);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 32px;
+            margin-bottom: 24px;
             position: relative;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        }
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
         }
         .card h2 {
-            font-size: 15px;
-            font-weight: 600;
-            color: var(--gold);
-            margin-bottom: 20px;
-            padding-bottom: 12px;
-            border-bottom: 1px solid rgba(212, 168, 67, 0.2);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .card h2 .dot {
-            width: 6px; height: 6px;
-            background: var(--gold);
-            border-radius: 50%;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-mid);
+            margin-bottom: 24px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
         }
 
         /* 檔案上傳 */
-        label { display: block; font-weight: 500; margin-bottom: 8px; color: var(--text); font-size: 14px; }
+        label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--text);
+            font-size: 14px;
+        }
         .upload-zone {
             width: 100%;
-            padding: 22px;
-            border: 2px dashed var(--border);
-            border-radius: 10px;
+            padding: 28px 20px;
+            border: 1.5px dashed rgba(255, 255, 255, 0.15);
+            border-radius: 14px;
             margin-bottom: 6px;
-            background: rgba(212, 168, 67, 0.03);
+            background: rgba(255, 255, 255, 0.02);
             cursor: pointer;
-            transition: all 0.25s;
+            transition: all 0.3s ease;
             text-align: center;
             position: relative;
         }
         .upload-zone:hover, .upload-zone.drag-over {
-            border-color: var(--gold);
-            background: var(--gold-dim);
+            border-color: var(--accent-light);
+            background: rgba(124, 106, 239, 0.08);
+            box-shadow: 0 0 24px rgba(124, 106, 239, 0.1);
         }
-        .upload-zone .icon { font-size: 26px; margin-bottom: 4px; }
-        .upload-zone .text { color: var(--text-secondary); font-size: 13px; }
+        .upload-zone .icon {
+            font-size: 28px;
+            margin-bottom: 6px;
+            opacity: 0.7;
+        }
+        .upload-zone .text {
+            color: var(--text-dim);
+            font-size: 13px;
+            font-weight: 300;
+        }
         .upload-zone .filename {
-            color: var(--gold-light);
+            color: var(--accent-light);
             font-size: 14px;
             font-weight: 600;
             display: none;
@@ -133,93 +167,88 @@ HTML_TEMPLATE = '''
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             opacity: 0; cursor: pointer;
         }
-        .hint { font-size: 11px; color: var(--text-secondary); margin-bottom: 18px; }
+        .hint {
+            font-size: 11px;
+            color: var(--text-dim);
+            margin-bottom: 20px;
+        }
 
         /* 按鈕 */
         .btn {
             display: inline-block;
-            padding: 13px 34px;
+            padding: 13px 36px;
             border: none;
-            border-radius: 8px;
-            font-size: 15px;
+            border-radius: 12px;
+            font-size: 14px;
             font-weight: 600;
             cursor: pointer;
             text-decoration: none;
-            transition: all 0.25s;
+            transition: all 0.3s ease;
+            letter-spacing: 0.5px;
         }
         .btn-primary {
-            background: linear-gradient(135deg, var(--gold), var(--gold-light));
-            color: var(--navy);
-            box-shadow: 0 4px 16px rgba(212, 168, 67, 0.3);
+            background: linear-gradient(135deg, var(--accent), var(--accent-light));
+            color: #fff;
+            box-shadow: 0 4px 20px var(--accent-glow);
         }
         .btn-primary:hover {
-            box-shadow: 0 6px 24px rgba(212, 168, 67, 0.45);
+            box-shadow: 0 8px 32px var(--accent-glow);
             transform: translateY(-2px);
         }
         .btn-export {
-            background: linear-gradient(135deg, var(--green), #2db86a);
-            color: #fff;
-            box-shadow: 0 4px 16px rgba(52, 199, 123, 0.25);
+            background: rgba(52, 211, 153, 0.15);
+            border: 1px solid rgba(52, 211, 153, 0.3);
+            color: var(--green);
+            backdrop-filter: blur(12px);
         }
         .btn-export:hover {
-            box-shadow: 0 6px 24px rgba(52, 199, 123, 0.4);
+            background: rgba(52, 211, 153, 0.25);
+            box-shadow: 0 4px 20px var(--green-glow);
             transform: translateY(-2px);
         }
         .btn-outline {
-            background: transparent;
-            color: var(--text-secondary);
-            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-dim);
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(12px);
         }
-        .btn-outline:hover { border-color: var(--gold); color: var(--gold); }
+        .btn-outline:hover {
+            border-color: rgba(255, 255, 255, 0.25);
+            color: var(--text);
+            background: rgba(255, 255, 255, 0.08);
+        }
         .btn-center { text-align: center; }
-        .actions { display: flex; gap: 14px; justify-content: center; margin-top: 20px; flex-wrap: wrap; }
-
-        /* 統計卡片 */
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-            margin-bottom: 20px;
+        .actions {
+            display: flex;
+            gap: 14px;
+            justify-content: center;
+            margin-top: 24px;
+            flex-wrap: wrap;
         }
-        .stat-item {
-            background: rgba(255,255,255,0.03);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 14px;
-            text-align: center;
-        }
-        .stat-item .value {
-            font-size: 24px;
-            font-weight: 700;
-            margin-bottom: 2px;
-        }
-        .stat-item .label {
-            font-size: 11px;
-            color: var(--text-secondary);
-        }
-        .stat-item.ok .value { color: var(--green); }
-        .stat-item.warn .value { color: var(--red); }
-        .stat-item.neutral .value { color: var(--gold); }
 
         /* 結果文字 */
         .result-box {
-            background: rgba(0, 0, 0, 0.2);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 18px;
-            font-family: "Courier New", monospace;
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 14px;
+            padding: 20px;
+            font-family: "SF Mono", "Fira Code", "Courier New", monospace;
             font-size: 13px;
-            line-height: 1.8;
+            line-height: 1.9;
             white-space: pre-line;
+            color: var(--text-mid);
         }
         .result-box.ok {
-            border-color: rgba(52, 199, 123, 0.3);
+            border-color: rgba(52, 211, 153, 0.25);
+            box-shadow: inset 0 0 30px rgba(52, 211, 153, 0.03);
         }
         .result-box.warn {
-            border-color: rgba(239, 85, 101, 0.3);
+            border-color: rgba(248, 113, 113, 0.25);
+            box-shadow: inset 0 0 30px rgba(248, 113, 113, 0.03);
         }
         .result-box.error {
-            border-color: rgba(239, 85, 101, 0.3);
+            border-color: rgba(248, 113, 113, 0.25);
+            box-shadow: inset 0 0 30px rgba(248, 113, 113, 0.03);
         }
 
         /* 狀態標籤 */
@@ -227,73 +256,86 @@ HTML_TEMPLATE = '''
             display: inline-block;
             font-size: 11px;
             font-weight: 600;
-            padding: 3px 12px;
-            border-radius: 4px;
-            margin-bottom: 14px;
-            letter-spacing: 1px;
+            padding: 4px 14px;
+            border-radius: 20px;
+            margin-bottom: 16px;
+            letter-spacing: 1.5px;
         }
-        .badge-ok { background: var(--green-dim); color: var(--green); }
-        .badge-warn { background: var(--red-dim); color: var(--red); }
+        .badge-ok {
+            background: var(--green-glow);
+            color: var(--green);
+            border: 1px solid rgba(52, 211, 153, 0.2);
+        }
+        .badge-warn {
+            background: var(--red-glow);
+            color: var(--red);
+            border: 1px solid rgba(248, 113, 113, 0.2);
+        }
 
         /* Loading */
         .loading-overlay {
             display: none;
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(15, 27, 61, 0.9);
+            background: rgba(12, 14, 26, 0.85);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
             z-index: 100;
             justify-content: center;
             align-items: center;
             flex-direction: column;
-            gap: 16px;
+            gap: 20px;
         }
         .loading-overlay.active { display: flex; }
         .spinner {
-            width: 44px; height: 44px;
-            border: 3px solid var(--border);
-            border-top-color: var(--gold);
+            width: 48px; height: 48px;
+            border: 2px solid rgba(255, 255, 255, 0.08);
+            border-top-color: var(--accent-light);
             border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+            animation: spin 0.9s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
         .loading-text {
-            font-size: 14px;
-            color: var(--gold);
-            letter-spacing: 2px;
+            font-size: 13px;
+            color: var(--text-dim);
+            letter-spacing: 3px;
+            font-weight: 300;
         }
 
         /* Footer */
         .footer {
             text-align: center;
-            margin-top: 36px;
+            margin-top: 40px;
             padding-top: 20px;
-            border-top: 1px solid rgba(212, 168, 67, 0.1);
-            color: var(--text-secondary);
-            font-size: 12px;
+            color: var(--text-dim);
+            font-size: 11px;
+            font-weight: 300;
+            letter-spacing: 1px;
+        }
+
+        /* 動畫 */
+        .card { animation: fadeUp 0.5s ease both; }
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
         }
     </style>
 </head>
 <body>
-    <div class="top-bar"></div>
     <div class="loading-overlay" id="loading">
         <div class="spinner"></div>
-        <div class="loading-text">對帳處理中...</div>
+        <div class="loading-text">對帳處理中</div>
     </div>
 
     <div class="container">
         <div class="header">
-            <div class="logo">
-                <div class="logo-icon">&#128176;</div>
-                <div>
-                    <h1>8591 <span>對帳系統</span></h1>
-                    <div class="subtitle">每日發票自動核對工具</div>
-                </div>
-            </div>
+            <h1>對帳系統</h1>
+            <div class="subtitle">Daily Invoice Reconciliation</div>
         </div>
 
         {% if not result and not error %}
         <form method="POST" enctype="multipart/form-data" id="mainForm">
             <div class="card">
-                <h2><span class="dot"></span> 上傳對帳檔案</h2>
+                <h2>上傳對帳檔案</h2>
 
                 <label>發票檔案</label>
                 <div class="upload-zone" id="zone1">
@@ -305,7 +347,7 @@ HTML_TEMPLATE = '''
                 </div>
                 <div class="hint">支援 XLSX / CSV 格式</div>
 
-                <label>8591 交易檔案</label>
+                <label>交易檔案</label>
                 <div class="upload-zone" id="zone2">
                     <div class="icon">&#128178;</div>
                     <div class="text">點擊或拖曳檔案至此</div>
@@ -323,7 +365,7 @@ HTML_TEMPLATE = '''
 
         {% if result %}
         <div class="card">
-            <h2><span class="dot"></span> 對帳結果</h2>
+            <h2>對帳結果</h2>
             {% if has_diff == False %}
             <span class="badge badge-ok">ALL MATCHED</span>
             {% else %}
@@ -339,7 +381,7 @@ HTML_TEMPLATE = '''
 
         {% if error %}
         <div class="card">
-            <h2><span class="dot"></span> 錯誤</h2>
+            <h2>錯誤</h2>
             <span class="badge badge-warn">ERROR</span>
             <div class="result-box error">{{ error }}</div>
             <div class="actions">
@@ -348,7 +390,7 @@ HTML_TEMPLATE = '''
         </div>
         {% endif %}
 
-        <div class="footer">8591 Invoice Reconciliation System v1.0</div>
+        <div class="footer">Invoice Reconciliation System v1.0</div>
     </div>
 
     <script>
