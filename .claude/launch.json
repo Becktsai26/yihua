@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "reconcile",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["reconcile_app.py"],
+      "port": 5678
+    }
+  ]
+}
