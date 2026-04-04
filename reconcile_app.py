@@ -1,111 +1,136 @@
-import tkinter as tk
-from tkinter import filedialog, messagebox, scrolledtext
 import os
-from reconcile_core import load_xlsx, load_csv, reconcile, get_summary_text, export_report
+import webbrowser
+import tempfile
+from flask import Flask, request, render_template_string, send_file
+from reconcile_core import load_invoice, load_trade, reconcile, get_summary_text, export_report
+
+app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
+
+HTML_TEMPLATE = '''
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>每日發票對帳工具</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, "Microsoft JhengHei", sans-serif; background: #f0f2f5; padding: 20px; }
+        .container { max-width: 700px; margin: 0 auto; }
+        h1 { text-align: center; color: #333; margin-bottom: 24px; font-size: 24px; }
+        .card { background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .card h2 { font-size: 16px; color: #666; margin-bottom: 16px; }
+        label { display: block; font-weight: 600; margin-bottom: 6px; color: #333; }
+        .hint { font-size: 12px; color: #999; margin-bottom: 12px; }
+        input[type="file"] { width: 100%; padding: 10px; border: 2px dashed #ccc; border-radius: 8px; margin-bottom: 4px; background: #fafafa; cursor: pointer; }
+        input[type="file"]:hover { border-color: #4472C4; }
+        .btn { display: inline-block; padding: 12px 32px; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; text-decoration: none; }
+        .btn-primary { background: #4472C4; color: #fff; }
+        .btn-primary:hover { background: #3561b3; }
+        .btn-success { background: #28a745; color: #fff; }
+        .btn-success:hover { background: #218838; }
+        .btn-center { text-align: center; }
+        .result { background: #f8f9fa; border-radius: 8px; padding: 16px; font-family: "Courier New", monospace; white-space: pre-line; line-height: 1.6; font-size: 14px; }
+        .result.ok { border-left: 4px solid #28a745; }
+        .result.warn { border-left: 4px solid #ffc107; }
+        .actions { display: flex; gap: 12px; justify-content: center; margin-top: 16px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>每日發票對帳工具</h1>
+
+        {% if not result %}
+        <form method="POST" enctype="multipart/form-data">
+            <div class="card">
+                <h2>上傳檔案</h2>
+                <label>發票檔案</label>
+                <input type="file" name="invoice_file" accept=".xlsx,.xls,.csv" required>
+                <div class="hint">支援 .xlsx / .csv</div>
+                <label>交易檔案</label>
+                <input type="file" name="trade_file" accept=".xlsx,.xls,.csv" required>
+                <div class="hint">支援 .xlsx / .csv</div>
+            </div>
+            <div class="btn-center">
+                <button type="submit" class="btn btn-primary">開始對帳</button>
+            </div>
+        </form>
+        {% else %}
+        <div class="card">
+            <h2>對帳結果</h2>
+            <div class="result {{ 'ok' if has_diff == False else 'warn' }}">{{ result }}</div>
+            <div class="actions">
+                <a href="/export" class="btn btn-success">匯出 Excel 報表</a>
+                <a href="/" class="btn btn-primary">重新對帳</a>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if error %}
+        <div class="card">
+            <div class="result warn">{{ error }}</div>
+            <div class="actions">
+                <a href="/" class="btn btn-primary">返回</a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>
+'''
+
+_last_result = {}
 
 
-class ReconcileApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title('每日發票對帳工具')
-        self.root.geometry('620x520')
-        self.root.resizable(False, False)
-        self.result = None
+def _save_upload(file_obj, tmp_dir, prefix):
+    """保存上傳檔案，保留原始副檔名"""
+    original_name = file_obj.filename or ''
+    ext = os.path.splitext(original_name)[1].lower() or '.xlsx'
+    path = os.path.join(tmp_dir, f'{prefix}{ext}')
+    file_obj.save(path)
+    return path
 
-        # 檔案選擇區
-        frame_files = tk.LabelFrame(root, text='檔案選擇', padx=10, pady=10)
-        frame_files.pack(fill='x', padx=10, pady=(10, 5))
 
-        tk.Label(frame_files, text='發票檔案 (XLSX)：').grid(row=0, column=0, sticky='w')
-        self.xlsx_var = tk.StringVar()
-        tk.Entry(frame_files, textvariable=self.xlsx_var, width=45).grid(row=0, column=1, padx=5)
-        tk.Button(frame_files, text='瀏覽', command=self.browse_xlsx).grid(row=0, column=2)
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    if request.method == 'GET':
+        return render_template_string(HTML_TEMPLATE, result=None, error=None)
 
-        tk.Label(frame_files, text='交易檔案 (CSV)：').grid(row=1, column=0, sticky='w', pady=(5, 0))
-        self.csv_var = tk.StringVar()
-        tk.Entry(frame_files, textvariable=self.csv_var, width=45).grid(row=1, column=1, padx=5, pady=(5, 0))
-        tk.Button(frame_files, text='瀏覽', command=self.browse_csv).grid(row=1, column=2, pady=(5, 0))
+    invoice_file = request.files.get('invoice_file')
+    trade_file = request.files.get('trade_file')
+    if not invoice_file or not trade_file:
+        return render_template_string(HTML_TEMPLATE, result=None, error='請上傳兩個檔案')
 
-        # 按鈕區
-        frame_btns = tk.Frame(root)
-        frame_btns.pack(pady=10)
-        tk.Button(frame_btns, text='開始對帳', command=self.run_reconcile,
-                  bg='#4472C4', fg='white', font=('Arial', 12, 'bold'),
-                  padx=20, pady=5).pack(side='left', padx=10)
-        self.export_btn = tk.Button(frame_btns, text='匯出報表', command=self.export,
-                                    state='disabled', font=('Arial', 12),
-                                    padx=20, pady=5)
-        self.export_btn.pack(side='left', padx=10)
+    try:
+        tmp_dir = tempfile.mkdtemp()
+        invoice_path = _save_upload(invoice_file, tmp_dir, 'invoice')
+        trade_path = _save_upload(trade_file, tmp_dir, 'trade')
 
-        # 結果顯示區
-        frame_result = tk.LabelFrame(root, text='對帳結果', padx=10, pady=10)
-        frame_result.pack(fill='both', expand=True, padx=10, pady=(5, 10))
-        self.result_text = scrolledtext.ScrolledText(frame_result, height=15, font=('Courier', 11))
-        self.result_text.pack(fill='both', expand=True)
+        invoice_df = load_invoice(invoice_path)
+        trade_df = load_trade(trade_path)
+        result = reconcile(invoice_df, trade_df)
+        _last_result['data'] = result
 
-    def browse_xlsx(self):
-        path = filedialog.askopenfilename(
-            title='選擇發票檔案',
-            filetypes=[('Excel 檔案', '*.xlsx'), ('所有檔案', '*.*')]
-        )
-        if path:
-            self.xlsx_var.set(path)
+        summary = get_summary_text(result)
+        has_diff = (len(result['amount_mismatch']) + len(result['only_in_xlsx']) + len(result['only_in_csv'])) > 0
 
-    def browse_csv(self):
-        path = filedialog.askopenfilename(
-            title='選擇交易檔案',
-            filetypes=[('CSV 檔案', '*.csv'), ('所有檔案', '*.*')]
-        )
-        if path:
-            self.csv_var.set(path)
+        return render_template_string(HTML_TEMPLATE, result=summary, has_diff=has_diff, error=None)
+    except Exception as e:
+        return render_template_string(HTML_TEMPLATE, result=None, error=f'對帳錯誤：{str(e)}')
 
-    def run_reconcile(self):
-        xlsx_path = self.xlsx_var.get().strip()
-        csv_path = self.csv_var.get().strip()
 
-        if not xlsx_path or not csv_path:
-            messagebox.showwarning('提示', '請先選擇兩個檔案')
-            return
+@app.route('/export')
+def export():
+    if 'data' not in _last_result:
+        return '請先執行對帳', 400
 
-        if not os.path.exists(xlsx_path):
-            messagebox.showerror('錯誤', f'找不到發票檔案：\n{xlsx_path}')
-            return
-        if not os.path.exists(csv_path):
-            messagebox.showerror('錯誤', f'找不到交易檔案：\n{csv_path}')
-            return
-
-        try:
-            xlsx_df = load_xlsx(xlsx_path)
-            csv_df = load_csv(csv_path)
-            self.result = reconcile(xlsx_df, csv_df)
-            summary = get_summary_text(self.result)
-
-            self.result_text.delete('1.0', tk.END)
-            self.result_text.insert(tk.END, summary)
-            self.export_btn.config(state='normal')
-        except Exception as e:
-            messagebox.showerror('錯誤', f'對帳過程發生錯誤：\n{str(e)}')
-
-    def export(self):
-        if not self.result:
-            messagebox.showwarning('提示', '請先執行對帳')
-            return
-
-        path = filedialog.asksaveasfilename(
-            title='儲存對帳報表',
-            defaultextension='.xlsx',
-            filetypes=[('Excel 檔案', '*.xlsx')],
-            initialfile='對帳報表.xlsx'
-        )
-        if path:
-            try:
-                export_report(self.result, path)
-                messagebox.showinfo('完成', f'報表已儲存至：\n{path}')
-            except Exception as e:
-                messagebox.showerror('錯誤', f'匯出失敗：\n{str(e)}')
+    tmp_path = os.path.join(tempfile.mkdtemp(), '對帳報表.xlsx')
+    export_report(_last_result['data'], tmp_path)
+    return send_file(tmp_path, as_attachment=True, download_name='對帳報表.xlsx')
 
 
 if __name__ == '__main__':
-    root = tk.Tk()
-    app = ReconcileApp(root)
-    root.mainloop()
+    port = 5678
+    print(f'對帳工具已啟動，請開啟瀏覽器：http://localhost:{port}')
+    webbrowser.open(f'http://localhost:{port}')
+    app.run(host='127.0.0.1', port=port, debug=False)

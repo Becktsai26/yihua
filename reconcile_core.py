@@ -1,19 +1,47 @@
+import os
 import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 
-def load_xlsx(path):
-    """讀取發票系統匯出的 XLSX，回傳整理後的 DataFrame"""
-    df = pd.read_excel(path, sheet_name='發票資料')
+def _read_file(path):
+    """根據副檔名自動選擇讀取方式，回傳 DataFrame（或 dict of DataFrame）"""
+    ext = os.path.splitext(path)[1].lower()
+    if ext in ('.xlsx', '.xls'):
+        return pd.read_excel(path, sheet_name=None)
+    elif ext == '.csv':
+        return pd.read_csv(path)
+    else:
+        raise ValueError(f'不支援的檔案格式：{ext}（僅支援 .xlsx / .csv）')
+
+
+def load_invoice(path):
+    """讀取發票檔案（XLSX 或 CSV），回傳整理後的 DataFrame"""
+    raw = _read_file(path)
+
+    if isinstance(raw, dict):
+        # XLSX：優先找「發票資料」sheet，找不到就用第一個 sheet
+        if '發票資料' in raw:
+            df = raw['發票資料']
+        else:
+            df = list(raw.values())[0]
+    else:
+        df = raw
+
     df['賣場編號'] = df['明細備註'].astype(str).str.strip()
     df['總計'] = pd.to_numeric(df['總計'], errors='coerce').fillna(0)
     return df[['發票號碼', '發票日期', '發票狀態', '總計', '賣場編號']].copy()
 
 
-def load_csv(path):
-    """讀取 8591 交易平台匯出的 CSV，自動偵測並跳過備註行"""
-    df = pd.read_csv(path)
+def load_trade(path):
+    """讀取 8591 交易檔案（XLSX 或 CSV），自動偵測並跳過備註行"""
+    raw = _read_file(path)
+
+    if isinstance(raw, dict):
+        df = list(raw.values())[0]
+    else:
+        df = raw
+
     # 自動偵測：如果第一行的賣場編號不是 S 開頭，視為備註行跳過
     first_val = str(df.iloc[0]['賣場編號']).strip() if len(df) > 0 else ''
     if not first_val.startswith('S'):
