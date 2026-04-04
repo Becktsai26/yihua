@@ -1,5 +1,6 @@
 @echo off
 chcp 65001 >nul 2>&1
+set PYTHONIOENCODING=utf-8
 echo ====================================
 echo   對帳系統 - 首次安裝
 echo ====================================
