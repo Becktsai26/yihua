@@ -60,6 +60,11 @@ def reconcile(xlsx_df, csv_df):
     xlsx_8591 = xlsx_df[mask_8591].copy()
     excluded_xlsx = xlsx_df[~mask_8591].copy()
 
+    # 處理重複發票：同一賣場編號出現多筆時，保留最後一筆（視為修正後的正確版本）
+    dup_count = xlsx_8591['賣場編號'].duplicated(keep='last').sum()
+    if dup_count > 0:
+        xlsx_8591 = xlsx_8591.drop_duplicates(subset='賣場編號', keep='last').reset_index(drop=True)
+
     xlsx_ids = set(xlsx_8591['賣場編號'])
     csv_ids = set(csv_df['賣場編號'])
     both = xlsx_ids & csv_ids
@@ -128,6 +133,7 @@ def reconcile(xlsx_df, csv_df):
         'xlsx_8591_total': xlsx_8591_total,
         'csv_total': csv_total,
         'xlsx_full_total': xlsx_df['總計'].sum(),
+        'dup_invoice_count': dup_count,
     }
 
 
@@ -140,6 +146,10 @@ def get_summary_text(result):
     n_only_csv = len(result['only_in_csv'])
     n_excluded = len(result['excluded_xlsx'])
 
+    n_dup = result.get('dup_invoice_count', 0)
+    if n_dup > 0:
+        lines.append(f"重複發票（已自動取最新）：{n_dup}")
+        lines.append("")
     lines.append(f"吻合筆數：{n_match}")
     lines.append(f"金額不符：{n_mismatch}")
     lines.append(f"只在發票紀錄存在：{n_only_xlsx}")
@@ -191,7 +201,12 @@ def export_report(result, output_path):
     # Sheet1: 對帳摘要
     ws1 = wb.active
     ws1.title = '對帳摘要'
-    summary_items = [
+    n_dup = result.get('dup_invoice_count', 0)
+    summary_items = []
+    if n_dup > 0:
+        summary_items.append(('重複發票（已自動取最新）', n_dup))
+        summary_items.append(('', ''))
+    summary_items += [
         ('吻合筆數', len(result['matched'])),
         ('金額不符', len(result['amount_mismatch'])),
         ('只在發票紀錄存在', len(result['only_in_xlsx'])),
@@ -215,17 +230,12 @@ def export_report(result, output_path):
     ws1.column_dimensions['A'].width = 25
     ws1.column_dimensions['B'].width = 18
 
-    # Sheet2: 吻合明細
-    ws2 = wb.create_sheet()
-    match_headers = ['賣場編號', '發票號碼', '發票金額', '交易金額', '遊戲名', '品項', '手續費', '交易所得', '購買時間', '完成時間']
-    write_sheet(ws2, '吻合明細', match_headers, result['matched'])
-
-    # Sheet3: 差異明細
+    # Sheet2: 差異明細
     ws3 = wb.create_sheet()
     ws3.title = '差異明細'
     # 金額不符
     row_idx = 1
-    ws3.cell(row=row_idx, column=1, value='【金額不符】').font = Font(bold=True, size=12)
+    ws3.cell(row=row_idx, column=1, value='【金額不符】— 兩邊都有這筆賣場編號，但金額對不上').font = Font(bold=True, size=12)
     row_idx += 1
     if result['amount_mismatch']:
         mismatch_headers = ['賣場編號', '發票號碼', '發票金額', '交易金額', '差額', '遊戲名']
@@ -243,7 +253,7 @@ def export_report(result, output_path):
         row_idx += 1
 
     row_idx += 1
-    ws3.cell(row=row_idx, column=1, value='【只在發票紀錄存在】').font = Font(bold=True, size=12)
+    ws3.cell(row=row_idx, column=1, value='【只在發票紀錄存在】— 發票有開但 8591 找不到對應交易').font = Font(bold=True, size=12)
     row_idx += 1
     if result['only_in_xlsx']:
         ox_headers = ['賣場編號', '發票號碼', '發票金額']
@@ -261,7 +271,7 @@ def export_report(result, output_path):
         row_idx += 1
 
     row_idx += 1
-    ws3.cell(row=row_idx, column=1, value='【只在8591交易紀錄存在】').font = Font(bold=True, size=12)
+    ws3.cell(row=row_idx, column=1, value='【只在8591交易紀錄存在】— 8591 有交易但沒開到發票').font = Font(bold=True, size=12)
     row_idx += 1
     if result['only_in_csv']:
         oc_headers = ['賣場編號', '交易金額', '遊戲名', '手續費', '交易所得']
