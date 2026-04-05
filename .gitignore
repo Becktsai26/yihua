@@ -1,5 +1,7 @@
 *.xlsx
 *.csv
+# 保留測試用範例檔
+!菜渣對帳系統/*.xlsx
 __pycache__/
 *.pyc
 dist/

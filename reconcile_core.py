@@ -60,10 +60,22 @@ def reconcile(xlsx_df, csv_df):
     xlsx_8591 = xlsx_df[mask_8591].copy()
     excluded_xlsx = xlsx_df[~mask_8591].copy()
 
-    # 處理重複發票：同一賣場編號出現多筆時，保留最後一筆（視為修正後的正確版本）
-    dup_count = xlsx_8591['賣場編號'].duplicated(keep='last').sum()
-    if dup_count > 0:
-        xlsx_8591 = xlsx_8591.drop_duplicates(subset='賣場編號', keep='last').reset_index(drop=True)
+    # 處理重開發票：同一賣場編號出現多筆時，全部拉出來供人工審核，不參與自動對帳
+    dup_sids = xlsx_8591[xlsx_8591['賣場編號'].duplicated(keep=False)]['賣場編號'].unique()
+    reissued_invoices = []
+    if len(dup_sids) > 0:
+        for sid in sorted(dup_sids):
+            rows = xlsx_8591[xlsx_8591['賣場編號'] == sid]
+            for _, row in rows.iterrows():
+                reissued_invoices.append({
+                    '賣場編號': sid,
+                    '發票號碼': row['發票號碼'],
+                    '發票金額': row['總計'],
+                    '發票日期': row['發票日期'],
+                    '發票狀態': row['發票狀態'],
+                })
+        # 從正常對帳中排除這些賣場編號
+        xlsx_8591 = xlsx_8591[~xlsx_8591['賣場編號'].isin(dup_sids)].reset_index(drop=True)
 
     xlsx_ids = set(xlsx_8591['賣場編號'])
     csv_ids = set(csv_df['賣場編號'])
@@ -133,7 +145,7 @@ def reconcile(xlsx_df, csv_df):
         'xlsx_8591_total': xlsx_8591_total,
         'csv_total': csv_total,
         'xlsx_full_total': xlsx_df['總計'].sum(),
-        'dup_invoice_count': dup_count,
+        'reissued_invoices': reissued_invoices,
     }
 
 
@@ -146,25 +158,25 @@ def get_summary_text(result):
     n_only_csv = len(result['only_in_csv'])
     n_excluded = len(result['excluded_xlsx'])
 
-    n_dup = result.get('dup_invoice_count', 0)
-    if n_dup > 0:
-        lines.append(f"重複發票（已自動取最新）：{n_dup}")
-        lines.append("")
+    n_reissued = len(result.get('reissued_invoices', []))
     lines.append(f"吻合筆數：{n_match}")
     lines.append(f"金額不符：{n_mismatch}")
     lines.append(f"只在發票紀錄存在：{n_only_xlsx}")
     lines.append(f"只在8591交易紀錄存在：{n_only_csv}")
     lines.append(f"排除（銀行紀錄）：{n_excluded}")
+    if n_reissued > 0:
+        lines.append(f"重開發票（待人工審核）：{n_reissued}")
     lines.append("")
     lines.append(f"發票總額：          {result['xlsx_8591_total']:,.0f}")
     lines.append(f"8591交易紀錄總額：{result['csv_total']:,.0f}")
     diff = result['xlsx_8591_total'] - result['csv_total']
     lines.append(f"差額：          {diff:,.0f}")
 
-    if n_mismatch == 0 and n_only_xlsx == 0 and n_only_csv == 0:
+    total_diff = n_mismatch + n_only_xlsx + n_only_csv + n_reissued
+    if total_diff == 0:
         lines.append("\n對帳結果：全部吻合")
     else:
-        lines.append(f"\n對帳結果：有 {n_mismatch + n_only_xlsx + n_only_csv} 筆差異需確認")
+        lines.append(f"\n對帳結果：有 {total_diff} 筆差異需確認")
 
     return '\n'.join(lines)
 
@@ -201,17 +213,14 @@ def export_report(result, output_path):
     # Sheet1: 對帳摘要
     ws1 = wb.active
     ws1.title = '對帳摘要'
-    n_dup = result.get('dup_invoice_count', 0)
-    summary_items = []
-    if n_dup > 0:
-        summary_items.append(('重複發票（已自動取最新）', n_dup))
-        summary_items.append(('', ''))
-    summary_items += [
+    n_reissued = len(result.get('reissued_invoices', []))
+    summary_items = [
         ('吻合筆數', len(result['matched'])),
         ('金額不符', len(result['amount_mismatch'])),
         ('只在發票紀錄存在', len(result['only_in_xlsx'])),
         ('只在8591交易紀錄存在', len(result['only_in_csv'])),
         ('排除（銀行紀錄）', len(result['excluded_xlsx'])),
+        ('重開發票（待人工審核）', n_reissued),
         ('', ''),
         ('發票總額', result['xlsx_8591_total']),
         ('8591交易紀錄總額', result['csv_total']),
@@ -282,6 +291,26 @@ def export_report(result, output_path):
         row_idx += 1
         for r in result['only_in_csv']:
             for col_idx, h in enumerate(oc_headers, 1):
+                ws3.cell(row=row_idx, column=col_idx, value=r.get(h, ''))
+            row_idx += 1
+    else:
+        ws3.cell(row=row_idx, column=1, value='（無）')
+        row_idx += 1
+
+    # 重開發票（待人工審核）
+    row_idx += 1
+    ws3.cell(row=row_idx, column=1, value='【重開發票】— 同一賣場編號出現多張發票，需人工審核').font = Font(bold=True, size=12)
+    row_idx += 1
+    reissued = result.get('reissued_invoices', [])
+    if reissued:
+        ri_headers = ['賣場編號', '發票號碼', '發票金額', '發票日期', '發票狀態']
+        for col_idx, h in enumerate(ri_headers, 1):
+            cell = ws3.cell(row=row_idx, column=col_idx, value=h)
+            cell.font = header_font
+            cell.fill = PatternFill('solid', fgColor='E67E22')
+        row_idx += 1
+        for r in reissued:
+            for col_idx, h in enumerate(ri_headers, 1):
                 ws3.cell(row=row_idx, column=col_idx, value=r.get(h, ''))
             row_idx += 1
     else:

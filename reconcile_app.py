@@ -453,7 +453,7 @@ def index():
         _last_result['data'] = result
 
         summary = get_summary_text(result)
-        has_diff = (len(result['amount_mismatch']) + len(result['only_in_xlsx']) + len(result['only_in_csv'])) > 0
+        has_diff = (len(result['amount_mismatch']) + len(result['only_in_xlsx']) + len(result['only_in_csv']) + len(result.get('reissued_invoices', []))) > 0
 
         return render_template_string(HTML_TEMPLATE, result=summary, has_diff=has_diff, error=None)
     except Exception as e:
